@@ -1,0 +1,27 @@
+# D:\Texton\Texton.ai\services\docker-compose.garage.yml
+
+services:
+  garage:
+    image: dxflrs/garage:v2.1.0 
+    container_name: garage
+    command: ["/garage", "server"]
+    
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3902:3902"
+      - "3903:3903"
+      
+    # 🚨 CORRECTED VOLUMES: Added the 'garage/' prefix to all host paths
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml  # Maps the config file
+      - ./garage/data:/var/lib/garage/data        # Maps the data storage folder
+      - ./garage/meta:/var/lib/garage/meta        # Maps the metadata folder
+      
+    restart: unless-stopped
+    networks:
+      - texton-net # Ensure this line is present to connect to the external network
+
+networks:
+  texton-net:
+    external: true # This references the network created earlier

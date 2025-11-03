@@ -1,0 +1,23 @@
+# D:\Garage-Docker\garage.toml
+
+# --- CORE STORAGE PATHS (Inside Container) ---
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+# Ensure the deprecated line is GONE and these two are present:
+replication_factor = 1 
+consistency_mode = "consistent" 
+
+# --- NETWORK & SECURITY ---
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "fbdfbb7d90e614435984f435da95009156f82cc0ae1152918814b86a85b18a4e"
+
+[s3_api]
+s3_region = "d-drive-local"
+bind_addr = "0.0.0.0:3900"
+
+# --- INITIAL CLUSTER CONFIGURATION ---
+[bootstrap]
+node_id = "TEXTON_GARAGE_NODE"
+layout = "default: [ \"TEXTON_GARAGE_NODE\" ]"

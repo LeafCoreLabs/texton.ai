@@ -1,0 +1,46 @@
+server:
+  port: 8080
+
+application:
+  security:
+    jwt:
+      secret-key: WW91clNlY3VyZVJBT1BlcmFhdGlvbjUtU3ByaW5nQXBwbGljYXRpb25LZXlGb3JUZXh0b24uYWk=
+      expiration: 86400000
+
+spring:
+  security:
+    user:
+      name: admin
+      password: "{noop}admin123"
+      roles: ADMIN
+  datasource:
+    url: jdbc:h2:mem:texton_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+services:
+  garage-s3:
+    endpoint: http://localhost:3900
+    bucket-name: texton-documents
+  chromadb:
+    url: http://localhost:8000
+    collection-name: user-document-embeddings
+  apache-tika:
+    url: http://localhost:9998
+
+spring.servlet.multipart:
+  max-file-size: 50MB
+  max-request-size: 50MB

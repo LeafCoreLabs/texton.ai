@@ -1,0 +1,26 @@
+# D:\Garage-Docker\docker-compose.yml
+
+# ... (rest of the file remains the same until 'services:')
+
+services:
+  garage:
+    image: dxflrs/garage:v2.1.0 # Or whatever version you are using
+    container_name: garage
+    
+    # REMOVE THE 'entrypoint' SECTION COMPLETELY
+    
+    # --- NEW: Define the core server command directly ---
+    command: ["/garage", "server"]
+    
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3902:3902"
+      - "3903:3903"
+    volumes:
+      - ./garage.toml:/etc/garage.toml
+      - ./data:/var/lib/garage/data
+      - ./meta:/var/lib/garage/meta
+    restart: unless-stopped
+    
+    # REMOVE THE 'environment' SECTION related to keys (we will create them later)

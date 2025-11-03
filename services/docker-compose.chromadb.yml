@@ -1,0 +1,20 @@
+# D:\Texton\Texton.ai\services\docker-compose.chromadb.yml
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    restart: unless-stopped
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: "/chroma/chroma"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chromadb/data:/chroma/chroma
+    networks:
+      - texton-net
+
+networks:
+  texton-net:
+    external: true

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  tika-server:
+    # Use the 'latest-full' image for comprehensive support including Tesseract OCR.
+    image: apache/tika:latest-full
+    
+    container_name: tika-server
+    
+    restart: unless-stopped
+    
+    # Map the Tika Server port
+    ports:
+      - "9998:9998" 
+      
+    # Map the dedicated local Tika configuration directory to a standard location inside the container
+    volumes:
+      # Host Path:Container Path
+      # Maps your local Tika directory to /tika-config-dir in the container.
+      - "D:\\Texton\\Texton.ai\\services\\tika:/tika-config-dir"
+      
+    # Command to start the Tika server, pointing it to the custom config file
+    # The path here is the one *inside* the container, which is where your local file is mounted.
+    command: ["--config", "/tika-config-dir/tika-config.xml"]
