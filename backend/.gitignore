@@ -1,2 +1,4 @@
 src/main/resources/application.yml
 # Application configuration file
+target/
+# Compiled classes and resources
