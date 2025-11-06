@@ -1,5 +1,24 @@
+# Ignore sensitive config
 backend/src/main/resources/application.yml
-# Application configuration file
+
+# Build / output folders
 backend/target/
-# Compiled classes and resources
+target/
+*.jar
+*.war
+
+# Node / frontend dependencies
+node_modules/
+dist/
+build/
+
+# IDE / system files
+.idea/
+.vscode/
+*.iml
+*.class
+.DS_Store
+*.log
+
+# Temporary storage folder
 backend/garage-storage/
