@@ -1,0 +1,5 @@
+backend/src/main/resources/application.yml
+# Application configuration file
+backend/target/
+# Compiled classes and resources
+backend/garage-storage/
