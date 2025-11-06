@@ -1,8 +1,9 @@
-# Ignore build files (VERY IMPORTANT)
-target/
-*/target/
+
+# Ignore ALL target folders anywhere
+**/target/
 *.jar
 *.war
+
 
 # Ignore config / secrets
 backend/src/main/resources/application.yml
