@@ -1,0 +1,151 @@
+fbdfbb7d90e614435984f435da95009156f82cc0ae1152918814b86a85b18a4e sha key open ssl
+
+
+
+476997d130b3c049f2dd90d9399a341756ab00e35e383eb5bd562fde5e995e70 (node id)
+
+Yjp8r2y9MJPXENMR+RukrUqEnpCCpPGJHpYdavLzThUHO03MzNQ7WqkkPw1e+PHmZjIrbOEzwg7SzWwhPUYfcg== base64 secret key
+
+postgre sql port: 2175
+pass: leafcorelabs
+
+command for garage docker::: docker-compose up -d
+
+to ckeck key: docker exec garage /garage key info TEXTON_ACCESS_KEY
+
+
+
+if pc changed::::::
+for composing: docker-compose up -d --force-recreate
+
+monitor status: docker ps
+
+for generating node id: docker exec garage /garage node id
+
+for assigning capacity and zone: docker exec garage /garage layout assign -c 1G -z local <ACTUAL_NODE_ID>
+
+for coming changes: docker exec garage /garage layout apply --version 1
+
+for creating id and key: docker exec garage /garage key create TEXTON_ACCESS_KEY
+# You MUST re-save the Secret Key printed here, or look up the one you saved originally.
+
+for recreating bucket: docker exec garage /garage bucket create documents
+
+for overriding permission: docker exec garage /garage bucket allow --read --write --owner documents --key TEXTON_ACCESS_KEY
+
+
+
+
+Action,Command,Effect
+Graceful Stop  ------- docker-compose stop ------- Stops the running garage container but preserves its state and data.
+Clean Stop & Remove ------ docker-compose down --------Stops the container and removes the container instance and network, but keeps your data (D:\Garage-Docker\data and \meta)."
+Wipe Everything ------- docker-compose down -v --------- Stops and removes the container, the network, and all associated volumes (your data). Do NOT run this unless you intend to erase all documents."
+
+
+
+
+==== ACCESS KEY INFORMATION ====
+Key ID:              GKd4cc6d6a82dd546fbbc1de27
+Key name:            TEXTON_ACCESS_KEY
+Secret key:          a134a4d5d669b0b6e8959a430db0d60614c3b7153da3de09d73ccd3a257bf258
+Created:             2025-10-24 18:30:06.545 +00:00
+Validity:            valid
+Expiration:          never
+
+Can create buckets:  false
+
+
+
+D:\Garage>docker exec garage /garage bucket allow --read --write --owner documents --key TEXTON_ACCESS_KEY
+2025-10-24T18:31:47.713938Z  INFO garage_net::netapp: Connected to 127.0.0.1:3901, negotiating handshake...
+2025-10-24T18:31:47.761371Z  INFO garage_net::netapp: Connection established to 476997d130b3c049
+==== BUCKET INFORMATION ====
+Bucket:          9cec744bc575684aaf9e7f28474b0f06a14da4d7dedd17d9d6b84df4e38f7c44
+Created:         2025-10-24 18:31:16.971 +00:00
+
+Size:            0 B (0 B)
+Objects:         0
+
+Website access:  false
+
+Global alias:    documents
+
+==== KEYS FOR THIS BUCKET ====
+Permissions  Access key                                     Local aliases
+RWO          GKd4cc6d6a82dd546fbbc1de27  TEXTON_ACCESS_KEY
+
+
+
+
+
+java -jar target\texton-ai-0.0.1-SNAPSHOT.jar (for running backend)
+mvn clean install (for building backend)
+
+mvn clean spring-boot:run (direct run backend)
+
+
+I acknowledge your request to provide the exact folder structure for your project.
+
+Based on the files we have finalized, the running Docker services, and standard Spring Boot practices, here is the complete, definitive folder structure for your project:
+
+-----
+
+## Texton.ai Project Folder Structure
+
+The root directory, `D:\Texton.ai`, contains two application codebases and one directory for all persistent infrastructure services.
+
+```
+D:\Texton.ai\
+├── backend\
+│   ├── src\
+│   │   ├── main\
+│   │   │   ├── java\
+│   │   │   │   ├── config\
+│   │   │   │   │   ├── CorsConfig.java              <-- CORS Configuration
+│   │   │   │   │   └── SecurityConfig.java          <-- Security / JWT / Roles
+│   │   │   │   ├── controller\
+│   │   │   │   │   ├── AuthController.java          <-- Signup / Login
+│   │   │   │   │   └── DocumentController.java      <-- Upload / Query API
+│   │   │   │   ├── models\
+│   │   │   │   │   ├── Document.java                <-- Entity (documents)
+│   │   │   │   │   └── User.java                    <-- Entity (users)
+│   │   │   │   ├── repositories\
+│   │   │   │   │   ├── DocumentRepository.java
+│   │   │   │   │   └── UserRepository.java
+│   │   │   │   └── service\
+│   │   │   │       ├── DocumentService.java         <-- Upload / AI flow / Pipeline
+│   │   │   │       ├── ParsingService.java          <-- Calls Apache Tika REST
+│   │   │   │       ├── S3Service.java               <-- Garage S3 uploads
+│   │   │   │       └── JwtService.java              <-- Token generation/validation
+│   │   │   ├── TextonBackendApplication.java        <-- Main Spring Boot Runner
+│   │   │   └── resources\
+│   │   │       └── application.yml                  <-- Ports + credentials
+│   │   └── test\
+│   ├── pom.xml
+│   └── mvnw
+│
+├── frontend\
+│   └── src\
+│       └── App.jsx                                  <-- React UI (all screens)
+│
+└── services\
+    ├── docker-compose.garage.yml                    <-- Garage S3
+    ├── docker-compose.chromadb.yml                  <-- ChromaDB
+    ├── docker-compose.tika.yml                      <-- Apache Tika
+    ├── run_service.bat                              <-- ✅ Start all services
+    ├── stop_service.bat                             <-- ✅ Stop all services
+    ├── garage\
+    │   ├── garage.toml
+    │   ├── data\                                    <-- Persistent S3 storage
+    │   └── meta\                                    <-- Persistent S3 metadata
+    ├── chromadb\
+    │   └── data\                                    <-- Vector DB
+    └── tika\
+        └── tika-config.xml
+
+    
+gemini build: https://gemini.google.com/app/a65672d6a7685ede
+chatgpt build: https://chatgpt.com/c/68fe1e62-ac84-8324-bcc4-7992cd33dcbc
+
+
+mvn spring-boot:run -Dspring-boot.run.arguments="--debug"
