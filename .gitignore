@@ -1,24 +1,22 @@
-# Ignore sensitive config
-backend/src/main/resources/application.yml
-
-# Build / output folders
-backend/target/
+# Ignore build files (VERY IMPORTANT)
 target/
+*/target/
 *.jar
 *.war
 
-# Node / frontend dependencies
+# Ignore config / secrets
+backend/src/main/resources/application.yml
+
+# Frontend dependencies
 node_modules/
 dist/
 build/
 
-# IDE / system files
+# IDE files
 .idea/
 .vscode/
 *.iml
 *.class
-.DS_Store
-*.log
 
-# Temporary storage folder
+# Custom storage
 backend/garage-storage/
