@@ -14,7 +14,7 @@ ChromaDB (vector search)
 
 Apache Tika (text extraction)
 
-MinIO S3 (S3-compatible object storage for easy local setup)
+Garage S3 (S3-compatible object storage for easy local setup)
 
 Gemini/OpenAI for intelligent Q&A
 
