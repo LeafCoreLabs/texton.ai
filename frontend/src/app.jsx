@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import translogo from './translogo.png';
+import codev from './Code_v.png'  
 import { Power, ArrowLeft, Loader2 as Loader, Lock, User, Mail, CheckCircle, XCircle, Send, Upload, Bot, FileText } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:8080/api';
@@ -113,8 +115,8 @@ const App = () => {
   const [selectedDocId, setSelectedDocId] = useState(null);
 
   const messagesEndRef = useRef(null);
-  const sseMapRef = useRef(new Map());      // docId -> EventSource
-  const pollTimersRef = useRef(new Map());  // docId -> intervalId
+  const sseMapRef = useRef(new Map());
+  const pollTimersRef = useRef(new Map());
 
   const clearMessage = () => setMessage({ type: null, text: null });
 
@@ -131,7 +133,6 @@ const App = () => {
   const getExpectedRole = (type) => (type === "Admin" ? "admin" : "user");
   const formatRole = (roleName) => (!roleName ? 'Guest' : roleName.charAt(0).toUpperCase() + roleName.slice(1));
 
-  // --- API helpers ---
   const authHeader = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const fetchDocuments = useCallback(async () => {
@@ -141,30 +142,23 @@ const App = () => {
       const list = Array.isArray(res.data) ? res.data : [];
       setDocuments(list);
 
-      // (re)attach SSE/polling for any docs that are PROCESSING
       list.forEach(d => {
         if (d.status === 'PROCESSING') {
           attachStatusListeners(d.id);
         } else {
-          cleanupDocListeners(d.id); // ensure we don't keep polling/SSE for processed
+          cleanupDocListeners(d.id);
         }
       });
-    } catch (e) {
-      // keep quiet in UI, but log
-      console.error('Failed to load documents', e);
-    }
+    } catch {}
   }, [token, authHeader]);
 
-  // SSE + polling manager
   const attachStatusListeners = useCallback((docId) => {
-    // SSE first (preferred)
     if (!sseMapRef.current.has(docId)) {
       try {
         const es = new EventSource(`${API_BASE_URL}/documents/${docId}/stream?token=${encodeURIComponent(token)}`);
         sseMapRef.current.set(docId, es);
 
         es.onmessage = (evt) => {
-          // expect payload like: { documentId, status }
           try {
             const payload = JSON.parse(evt.data);
             if (payload?.status) {
@@ -176,21 +170,17 @@ const App = () => {
               }
             }
           } catch {
-            // non-JSON fallback: treat full text as status
             const statusText = String(evt.data || '').trim();
             if (statusText) {
               setDocuments(prev =>
                 prev.map(d => d.id === docId ? { ...d, status: statusText } : d)
               );
-              if (statusText === 'PROCESSED' || statusText === 'FAILED') {
-                cleanupDocListeners(docId);
-              }
+              if (statusText === 'PROCESSED' || 'FAILED') cleanupDocListeners(docId);
             }
           }
         };
 
         es.onerror = () => {
-          // SSE may be blocked (ownership/auth), so fallback to polling
           es.close();
           sseMapRef.current.delete(docId);
           ensurePolling(docId);
@@ -199,8 +189,6 @@ const App = () => {
         ensurePolling(docId);
       }
     }
-
-    // start polling as backup immediately too (ensures UI moves even if SSE is delayed)
     ensurePolling(docId);
   }, [token]);
 
@@ -217,8 +205,7 @@ const App = () => {
             cleanupDocListeners(docId);
           }
         }
-      } catch (e) {
-        // stop polling on persistent errors
+      } catch {
         cleanupDocListeners(docId);
       }
     }, 3000);
@@ -240,7 +227,6 @@ const App = () => {
 
   useEffect(() => {
     return () => {
-      // on unmount cleanup all
       sseMapRef.current.forEach(es => { try { es.close(); } catch {} });
       sseMapRef.current.clear();
       pollTimersRef.current.forEach(id => clearInterval(id));
@@ -248,12 +234,10 @@ const App = () => {
     };
   }, []);
 
-  // Scroll chat to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isBotTyping]);
 
-  // When doc selected, move to Chat and greet
   useEffect(() => {
     if (selectedDocId) {
       setActiveTab('Chat');
@@ -266,14 +250,10 @@ const App = () => {
     }
   }, [selectedDocId, documents]);
 
-  // After login, load documents
   useEffect(() => {
-    if (step === 'dashboard' && token) {
-      fetchDocuments();
-    }
+    if (step === 'dashboard' && token) fetchDocuments();
   }, [step, token, fetchDocuments]);
 
-  // --- Auth handlers ---
   const handleLogin = async (e) => {
     e.preventDefault();
     clearMessage();
@@ -338,7 +318,7 @@ const App = () => {
     setConfirmLogout(false);
     setLoginData({ username: '', password: '' });
     clearMessage();
-    // cleanup listeners too
+
     sseMapRef.current.forEach(es => { try { es.close(); } catch {} });
     sseMapRef.current.clear();
     pollTimersRef.current.forEach(id => clearInterval(id));
@@ -347,7 +327,6 @@ const App = () => {
     setSelectedDocId(null);
   };
 
-  // --- Upload & Query ---
   const handleFileChange = (e) => {
     setSelectedFile(e.target.files[0]);
     setUploadMessage('');
@@ -373,7 +352,6 @@ const App = () => {
 
       setUploadMessage(`Success! ${response.data.message || 'File sent for processing.'}`);
 
-      // Optimistically add placeholder row (PROCESSING)
       const newDoc = {
         id: response.data.documentId,
         fileName: selectedFile.name,
@@ -383,14 +361,9 @@ const App = () => {
       };
       setDocuments(prev => [newDoc, ...prev]);
 
-      // attach listeners
       attachStatusListeners(newDoc.id);
-
-      // refresh full list once
       fetchDocuments();
-
     } catch (error) {
-      console.error("Upload error:", error);
       setUploadMessage(`Upload failed: ${error.response?.data?.message || 'Server connection error.'}`);
     } finally {
       setLoading(false);
@@ -417,14 +390,12 @@ const App = () => {
 
       setChatHistory(prev => [...prev, { sender: 'bot', message: response.data.answer }]);
     } catch (error) {
-      console.error("Query error:", error);
-      setChatHistory(prev => [...prev, { sender: 'bot', message: `Error: Could not connect to AI service. Check backend connection (Gemini/ChromaDB/Spring Boot).` }]);
+      setChatHistory(prev => [...prev, { sender: 'bot', message: `Error: Could not connect to AI service.` }]);
     } finally {
       setIsBotTyping(false);
     }
   };
 
-  // --- UI builders ---
   const renderMessage = () => {
     if (!message.text) return null;
     const base = "p-3 mt-4 rounded-lg shadow-lg text-sm flex items-start mb-4 whitespace-pre-wrap";
@@ -449,13 +420,16 @@ const App = () => {
           id="file-upload-input"
           type="file"
           onChange={handleFileChange}
-          className="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition"
+          className="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 
+          file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold 
+          file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition"
           accept=".pdf,.docx,.txt"
         />
         <button
           onClick={handleFileUpload}
           disabled={!selectedFile || loading}
-          className={`px-8 py-3 rounded-xl text-white font-bold transition duration-300 ease-in-out transform hover:scale-[1.02] shadow-lg flex items-center justify-center ${
+          className={`px-8 py-3 rounded-xl text-white font-bold transition duration-300 ease-in-out 
+          transform hover:scale-[1.02] shadow-lg flex items-center justify-center ${
             !selectedFile || loading
               ? 'bg-gray-400 cursor-not-allowed opacity-70'
               : 'bg-green-600 hover:bg-green-700 shadow-green-300/50'
@@ -498,7 +472,8 @@ const App = () => {
         ))}
         {isBotTyping && (
           <div className="flex justify-start animate-pulse">
-            <div className="bg-white text-gray-500 rounded-3xl rounded-tl-md border border-gray-200 p-4 shadow-xl italic">
+            <div className="bg-white text-gray-500 rounded-3xl rounded-tl-md border border-gray-200 
+            p-4 shadow-xl italic">
               <Loader className="inline mr-2 h-5 w-5 text-indigo-600 animate-spin" />
               Gemini AI is generating response...
             </div>
@@ -515,12 +490,14 @@ const App = () => {
             onChange={(e) => setUserInput(e.target.value)}
             disabled={isBotTyping || !selectedDocId}
             placeholder={selectedDocId ? "Ask a question about the document..." : "Select a document to chat..."}
-            className="flex-grow p-4 border border-gray-300 rounded-xl text-gray-700 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition"
+            className="flex-grow p-4 border border-gray-300 rounded-xl text-gray-700 focus:ring-indigo-500 
+            focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition"
           />
           <button
             type="submit"
             disabled={isBotTyping || !userInput.trim() || !selectedDocId}
-            className={`px-6 py-3 rounded-xl text-white font-bold transition duration-300 shadow-md flex items-center justify-center transform hover:scale-105 ${
+            className={`px-6 py-3 rounded-xl text-white font-bold transition duration-300 shadow-md 
+            flex items-center justify-center transform hover:scale-105 ${
               isBotTyping || !userInput.trim() || !selectedDocId
                 ? 'bg-gray-400 cursor-not-allowed opacity-70'
                 : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-400/50'
@@ -545,13 +522,15 @@ const App = () => {
               <div className="flex space-x-2">
                 <button
                   onClick={handleLogout}
-                  className="flex-1 text-xs py-1.5 bg-red-600 text-white hover:bg-red-700 rounded-md transition duration-200"
+                  className="flex-1 text-xs py-1.5 bg-red-600 text-white hover:bg-red-700 
+                  rounded-md transition duration-200"
                 >
                   Yes, Logout
                 </button>
                 <button
                   onClick={() => setConfirmLogout(false)}
-                  className="flex-1 text-xs py-1.5 bg-gray-400 text-gray-800 hover:bg-gray-500 rounded-md transition duration-200"
+                  className="flex-1 text-xs py-1.5 bg-gray-400 text-gray-800 hover:bg-gray-500 
+                  rounded-md transition duration-200"
                 >
                   Cancel
                 </button>
@@ -560,7 +539,8 @@ const App = () => {
           ) : (
             <button
               onClick={() => setConfirmLogout(true)}
-              className="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200"
+              className="w-full flex items-center justify-center px-4 py-2 bg-red-600 
+              hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200"
             >
               <Power className="w-5 h-5 mr-2" /> Logout
             </button>
@@ -613,7 +593,9 @@ const App = () => {
           placeholder="Username"
           value={loginData.username}
           onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
-          className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+          className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+          border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 
+          outline-none transition duration-200"
           required
         />
       </div>
@@ -624,7 +606,9 @@ const App = () => {
           placeholder="Password"
           value={loginData.password}
           onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-          className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+          className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+          border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 
+          outline-none transition duration-200"
           required
         />
       </div>
@@ -637,14 +621,16 @@ const App = () => {
             setStep('user_type');
             clearMessage();
           }}
-          className="btn w-full bg-gray-200 text-gray-700 hover:bg-gray-300 transition duration-200 flex items-center justify-center py-2.5 rounded-full font-medium"
+          className="btn w-full bg-gray-200 text-gray-700 hover:bg-gray-300 transition duration-200 
+          flex items-center justify-center py-2.5 rounded-full font-medium"
         >
           <ArrowLeft className="w-5 h-5 mr-2" /> Back
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="btn w-full bg-blue-600 text-white hover:bg-blue-700 transition duration-200 flex items-center justify-center py-2.5 rounded-full font-medium"
+          className="btn w-full bg-blue-600 text-white hover:bg-blue-700 transition duration-200 
+          flex items-center justify-center py-2.5 rounded-full font-medium"
         >
           {loading ? <Loader className="animate-spin w-5 h-5" /> : 'Sign In'}
         </button>
@@ -663,7 +649,9 @@ const App = () => {
             placeholder="Username"
             value={signupData.username}
             onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
-            className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+            className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+            border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 
+            outline-none transition duration-200"
             required
           />
         </div>
@@ -674,7 +662,9 @@ const App = () => {
             placeholder="Password"
             value={signupData.password}
             onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-            className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+            className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+            border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 
+            outline-none transition duration-200"
             required
           />
         </div>
@@ -687,7 +677,9 @@ const App = () => {
           placeholder="Full Name"
           value={signupData.name}
           onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
-          className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+          className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+          border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 
+          outline-none transition duration-200"
           required
         />
       </div>
@@ -699,7 +691,9 @@ const App = () => {
             placeholder="Email"
             value={signupData.email}
             onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-            className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+            className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+            border-gray-300 rounded-full py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 
+            outline-none transition duration-200"
             required
           />
         </div>
@@ -708,34 +702,42 @@ const App = () => {
           placeholder="Contact Number"
           value={signupData.contact}
           onChange={(e) => setSignupData({ ...signupData, contact: e.target.value })}
-          className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+          className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+          border-gray-300 rounded-full py-3 px-4 focus:ring-2 focus:ring-blue-500 
+          outline-none transition duration-200"
         />
       </div>
       <textarea
         placeholder="Address"
         value={signupData.address}
         onChange={(e) => setSignupData({ ...signupData, address: e.target.value })}
-        className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200 h-24"
+        className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+        border-gray-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none 
+        transition duration-200 h-24"
       />
       <input
         type="text"
         placeholder="Designation (e.g., Engineer, Manager)"
         value={signupData.designation}
         onChange={(e) => setSignupData({ ...signupData, designation: e.target.value })}
-        className="w-full bg-white text-gray-800 placeholder-gray-500 border border-gray-300 rounded-full py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none transition duration-200"
+        className="w-full bg-white text-gray-800 placeholder-gray-500 border 
+        border-gray-300 rounded-full py-3 px-4 focus:ring-2 focus:ring-blue-500 
+        outline-none transition duration-200"
       />
       <div className="flex justify-between space-x-4 pt-4">
         <button
           type="button"
           onClick={() => { setStep('login'); clearMessage(); }}
-          className="btn w-full bg-gray-200 text-gray-700 hover:bg-gray-300 transition duration-200 flex items-center justify-center py-2.5 rounded-full font-medium"
+          className="btn w-full bg-gray-200 text-gray-700 hover:bg-gray-300 transition duration-200 
+          flex items-center justify-center py-2.5 rounded-full font-medium"
         >
           <ArrowLeft className="w-5 h-5 mr-2" /> Back to Sign In
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="btn w-full bg-green-600 text-white hover:bg-green-700 transition duration-200 flex items-center justify-center py-3 rounded-full font-medium"
+          className="btn w-full bg-green-600 text-white hover:bg-green-700 transition duration-200 
+          flex items-center justify-center py-3 rounded-full font-medium"
         >
           {loading ? <Loader className="animate-spin w-5 h-5" /> : 'Create Account'}
         </button>
@@ -747,7 +749,8 @@ const App = () => {
     switch (step) {
       case 'user_type':
         return (
-          <div className="space-y-6 w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl border border-blue-200 animate-in fade-in duration-700">
+          <div className="space-y-6 w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl border 
+          border-blue-200 animate-in fade-in duration-700">
             <h3 className="text-2xl font-semibold text-gray-900 text-center">Access Portal</h3>
             <p className="text-gray-700 text-center">Select your role to proceed:</p>
             <div className="flex flex-col space-y-4">
@@ -755,9 +758,10 @@ const App = () => {
                 <button
                   key={type}
                   onClick={() => setUserType(type)}
-                  className={`w-full py-3 px-4 rounded-xl font-bold transition duration-200 text-white shadow-md ${
-                    userType === type ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-400/50' : 'bg-gray-400 hover:bg-gray-500'
-                  }`}
+                  className={`w-full py-3 px-4 rounded-xl font-bold transition duration-200 
+                  text-white shadow-md ${userType === type ? 
+                  'bg-blue-600 hover:bg-blue-700 shadow-blue-400/50' : 
+                  'bg-gray-400 hover:bg-gray-500'}`}
                 >
                   {type}
                 </button>
@@ -767,7 +771,8 @@ const App = () => {
               onClick={() => userType && setStep('login')}
               disabled={!userType}
               className={`w-full btn py-3 mt-4 rounded-full font-medium transition duration-200 ${
-                !userType ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'
+                !userType ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 
+                'bg-green-600 hover:bg-green-700 text-white'
               }`}
             >
               Continue to Login
@@ -779,7 +784,8 @@ const App = () => {
         const isLogin = step === 'login';
         const isAdminPortal = userType === 'Admin';
         return (
-          <div className="w-full max-w-lg mx-auto bg-white p-8 rounded-2xl shadow-2xl border border-blue-200 animate-in fade-in duration-700">
+          <div className="w-full max-w-lg mx-auto bg-white p-8 rounded-2xl shadow-2xl border 
+          border-blue-200 animate-in fade-in duration-700">
             <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">{userType} Portal</h2>
             {renderMessage()}
             <div className="flex justify-center mb-6">
@@ -795,7 +801,8 @@ const App = () => {
                 <button
                   onClick={() => { setStep('signup'); clearMessage(); }}
                   className={`px-6 py-2 rounded-r-full font-semibold transition duration-200 ${
-                    !isLogin ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    !isLogin ? 'bg-blue-600 text-white' : 
+                    'bg-gray-200 text-gray-600 hover:bg-gray-300'
                   }`}
                 >
                   Sign Up
@@ -803,7 +810,8 @@ const App = () => {
               )}
             </div>
             {isLogin ? renderLoginForm() : !isAdminPortal ? renderSignupForm() : (
-              <div className="text-center p-8 bg-gray-100 rounded-lg text-gray-700 border border-gray-300">
+              <div className="text-center p-8 bg-gray-100 rounded-lg text-gray-700 border 
+              border-gray-300">
                 <Lock className="w-8 h-8 mx-auto text-red-500 mb-2" />
                 <p className="font-semibold">Administrative accounts cannot be created via this portal.</p>
                 <p className="text-sm mt-1">Please use existing credentials to access the Admin Dashboard.</p>
@@ -814,7 +822,8 @@ const App = () => {
       }
       case 'dashboard':
         return (
-          <div className="w-full max-w-7xl mx-auto p-8 bg-white rounded-2xl shadow-2xl border border-blue-200 animate-in fade-in duration-700">
+          <div className="w-full max-w-7xl mx-auto p-8 bg-white rounded-2xl shadow-2xl border 
+          border-blue-200 animate-in fade-in duration-700">
             {renderDashboard()}
           </div>
         );
@@ -825,19 +834,35 @@ const App = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center p-4 bg-gray-50 font-sans relative">
+
+      {/* 🔥 UPDATED HEADER WITH LOGO 🔥 */}
       <header className="mb-8 mt-4 text-center">
-        <h1 className="text-5xl font-extrabold text-indigo-700 flex items-center justify-center">
-          <Bot className="w-10 h-10 mr-3 text-indigo-500" />
-          Texton.ai
-        </h1>
-        <p className="text-gray-500 mt-2 text-lg">Intelligent Document Platform</p>
+        <div className="flex items-center justify-center">
+          <img
+            src={translogo}
+            alt="Texton Logo"
+            className="w-[350px] h-auto drop-shadow-lg"
+          />
+        </div>
+        <p className="text-gray-500 mt-4 text-lg">Talk with your Text</p>
       </header>
 
       {renderContent()}
 
       <footer className="mt-12 mb-4 text-center text-gray-500 text-xs">
-        Built with React, Spring Boot, and Gemini AI.
-      </footer>
+  Made with ❤️ by LeafCore Labs | © 2025 LeafCore Labs. All rights reserved |
+  UDYAM MSME Registered (Govt. of India)
+
+  {/* Code_v Logo Below Footer Text */}
+  <div className="flex justify-center mt-3">
+    <img 
+      src={codev} 
+      alt="Code V Logo" 
+      className="w-[180px] h-auto opacity-90 hover:opacity-100 transition"
+    />
+  </div>
+</footer>
+
     </div>
   );
 };
