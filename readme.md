@@ -92,7 +92,7 @@ Modular Spring Boot layers
 | Embeddings | Google Gemini / OpenAI |
 | Auth | Spring Security + JWT |
 ````
-
+````bash
 D:\Texton.ai\
 ├── backend\
 │   ├── src\
@@ -168,7 +168,7 @@ D:\Texton.ai\
 │   └── logos\
 │
 └── readme.md
-
+````
 
 
 🐳 Docker Services
@@ -227,6 +227,6 @@ Frontend runs on: http://localhost:5173
 ````
 
 <p align="center">
-<img src="assets/logos/Code_v.png" alt="LeafCore Logo" width="200"/>
+<img src="assets/Code_v.png" alt="LeafCore Logo" width="200"/>
 </p>
 <p align="center"><b>Made with ❤️ by LeafCore Labs</b></p>
