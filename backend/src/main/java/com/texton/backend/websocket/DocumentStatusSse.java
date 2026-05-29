@@ -31,6 +31,27 @@ public class DocumentStatusSse {
         return emitter;
     }
 
+    /** Close and remove any active stream for this document */
+    public void disconnect(Long documentId) {
+        SseEmitter emitter = emitters.remove(documentId);
+        if (emitter != null) {
+            try {
+                emitter.complete();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /** Indexing progress 0–100 while status remains PROCESSING. */
+    public void sendProgress(Long documentId, int percent) {
+        SseEmitter emitter = emitters.get(documentId);
+        if (emitter == null) return;
+        try {
+            emitter.send(SseEmitter.event().name("progress").data(Math.min(100, Math.max(0, percent))));
+        } catch (IOException e) {
+            emitters.remove(documentId);
+        }
+    }
+
     /** Push a status update to the subscriber (if connected) */
     public void sendStatus(Long documentId, String status) {
         SseEmitter emitter = emitters.get(documentId);

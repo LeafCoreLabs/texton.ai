@@ -23,7 +23,15 @@ public class Document {
     private Long sizeInKB; 
     @Column(nullable = false)
     private LocalDateTime uploadDate = LocalDateTime.now();
-    
+
+    /** Pages indexed (PDF page count or 1 for other formats). */
+    @Column
+    private Integer pageCount;
+
+    /** Number of vector chunks stored for RAG. */
+    @Column
+    private Integer chunkCount;
+
     public enum DocumentStatus { PROCESSING, PROCESSED, FAILED }
 
     public Document() {}
@@ -43,4 +51,8 @@ public class Document {
     public void setSizeInKB(Long sizeInKB) { this.sizeInKB = sizeInKB; }
     public LocalDateTime getUploadDate() { return uploadDate; }
     public void setUploadDate(LocalDateTime uploadDate) { this.uploadDate = uploadDate; }
+    public Integer getPageCount() { return pageCount; }
+    public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+    public Integer getChunkCount() { return chunkCount; }
+    public void setChunkCount(Integer chunkCount) { this.chunkCount = chunkCount; }
 }

@@ -1,0 +1,95 @@
+# Full Texton.ai stack — app + infrastructure
+# Usage:
+#   cp .env.example .env   # set GEMINI_API_KEY and JWT_SECRET
+#   docker compose up --build
+#
+# UI:      http://localhost:5173
+# API:     http://localhost:8080
+# Chroma:  http://localhost:8000
+# Tika:    http://localhost:9998
+# Garage:  S3 API on localhost:3900
+
+services:
+  backend:
+    build: ./backend
+    container_name: texton-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-for-docker}
+    volumes:
+      - backend-uploads:/app/garage-storage
+      - backend-h2:/data
+    depends_on:
+      - chromadb
+      - tika-server
+    networks:
+      - texton-net
+
+  frontend:
+    build: ./frontend
+    container_name: texton-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - texton-net
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    restart: unless-stopped
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: "/chroma/chroma"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/chromadb/data:/chroma/chroma
+    networks:
+      - texton-net
+
+  tika-server:
+    image: apache/tika:latest-full
+    container_name: tika-server
+    restart: unless-stopped
+    ports:
+      - "9998:9998"
+    volumes:
+      - ./services/tika:/tika-config-dir:ro
+    command: ["--config", "/tika-config-dir/tika-config.xml"]
+    networks:
+      - texton-net
+
+  garage:
+    image: dxflrs/garage:v2.1.0
+    container_name: garage
+    restart: unless-stopped
+    command: ["/garage", "server"]
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3902:3902"
+      - "3903:3903"
+    volumes:
+      - ./services/garage/garage.toml:/etc/garage.toml:ro
+      - ./services/garage/data:/var/lib/garage/data
+      - ./services/garage/meta:/var/lib/garage/meta
+    networks:
+      - texton-net
+
+networks:
+  texton-net:
+    driver: bridge
+
+volumes:
+  backend-uploads:
+  backend-h2:

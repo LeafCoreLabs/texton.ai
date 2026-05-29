@@ -1,0 +1,58 @@
+server:
+  port: 8080
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 250MB
+      max-request-size: 260MB
+  datasource:
+    url: jdbc:h2:file:/data/texton;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+
+groq:
+  api-key: ${GROQ_API_KEY:}
+  model: ${GROQ_MODEL:llama-3.3-70b-versatile}
+
+application:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET:change-this-jwt-secret-for-docker}
+      expiration: 86400000
+
+services:
+  apache-tika:
+    url: http://tika-server:9998
+
+ai:
+  chromadb:
+    url: http://chromadb:8000
+    collection: user-document-embeddings
+
+# Large-book indexing (5000+ page PDFs): page-aware chunks + wide reranked RAG
+texton:
+  indexing:
+    max-upload-mb: 250
+    max-pages: 6000
+    max-chunks-per-document: 10000
+    chunk-target-chars: 3200
+    chunk-overlap-chars: 280
+    query-retrieve-k: 56
+    query-final-k: 18
+    study-retrieve-k: 64
+    study-final-k: 20
+    min-retrieval-confidence: 0.18
+    embedding-batch-size: 10
+    min-page-chars: 25

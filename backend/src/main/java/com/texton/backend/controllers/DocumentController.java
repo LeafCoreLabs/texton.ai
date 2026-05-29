@@ -4,6 +4,7 @@ import com.texton.backend.models.Document;
 import com.texton.backend.service.DocumentService;
 import com.texton.backend.service.AuthService;
 import com.texton.backend.repositories.DocumentRepository;
+import com.texton.backend.util.DocumentFileValidator;
 import com.texton.backend.websocket.DocumentStatusSse;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,32 +33,29 @@ public class DocumentController {
     @Autowired
     private DocumentRepository documentRepository;
 
-    // ============================================================
-    // ✅ LIST USER DOCUMENTS (GET /api/documents)
-    // ============================================================
     @GetMapping("/documents")
-    public ResponseEntity<List<Document>> getAllUserDocuments(@RequestHeader("Authorization") String token) {
+    public ResponseEntity<List<Document>> getAllUserDocuments(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
 
-        String cleanToken = token.replace("Bearer ", "").trim();
-        String username = authService.getUsernameFromToken(cleanToken);
-
-        Long userId = authService.getUserByUsername(username).getId();
-        List<Document> documents = documentService.getDocumentsByUserId(userId);
-
-        return ResponseEntity.ok(documents);
+        String username = authService.resolveUsername(authorization);
+        var user = authService.getUserByUsername(username);
+        if (user == null) {
+            return ResponseEntity.internalServerError().build();
+        }
+        return ResponseEntity.ok(documentService.getDocumentsByUserId(user.getId()));
     }
 
-    // ============================================================
-    // ✅ UPLOAD DOCUMENT (POST /api/upload)
-    // ============================================================
     @PostMapping("/upload")
     public ResponseEntity<?> uploadDocument(
             @RequestParam("file") MultipartFile file,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
 
-        String cleanToken = token.replace("Bearer ", "").trim();
-        String username = authService.getUsernameFromToken(cleanToken);
+        String validationError = DocumentFileValidator.validate(file);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(Map.of("message", validationError));
+        }
 
+        String username = authService.resolveUsername(authorization);
         Document newDoc = documentService.uploadAndProcessDocument(file, username);
 
         return ResponseEntity.ok(Map.of(
@@ -66,38 +64,81 @@ public class DocumentController {
         ));
     }
 
-    // ============================================================
-    // ✅ QUERY DOCUMENT (POST /api/query)
-    // ============================================================
     @PostMapping("/query")
     public ResponseEntity<?> queryDocument(
             @RequestBody DocumentQueryRequest queryRequest,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
 
-        String cleanToken = token.replace("Bearer ", "").trim();
-        String username = authService.getUsernameFromToken(cleanToken);
-
+        String username = authService.resolveUsername(authorization);
         String answer = documentService.queryDocument(
                 queryRequest.getDocumentId(),
                 queryRequest.getQuery(),
-                username
+                username,
+                queryRequest.getProfileContext()
         );
 
         return ResponseEntity.ok(Map.of("answer", answer));
     }
 
+    @DeleteMapping("/documents/{documentId}")
+    public ResponseEntity<?> deleteDocument(
+            @PathVariable Long documentId,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
 
-    // ============================================================
-    // ✅ DOCUMENT STATUS STREAM (SSE)
-    // ✅ GET /api/documents/{documentId}/stream?token=JWT
-    // ============================================================
+        String username = authService.resolveUsername(authorization);
+        String error = documentService.deleteDocument(documentId, username);
+
+        if ("NOT_FOUND".equals(error)) {
+            return ResponseEntity.status(404).body(Map.of("message", "Document not found."));
+        }
+        if ("FORBIDDEN".equals(error)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Not allowed to delete this document."));
+        }
+
+        return ResponseEntity.ok(Map.of("message", "Document deleted successfully."));
+    }
+
+    @PostMapping("/chat")
+    public ResponseEntity<?> generalChat(@RequestBody GeneralChatRequest chatRequest) {
+        if (chatRequest.getQuery() == null || chatRequest.getQuery().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Query is required"));
+        }
+        String answer = documentService.generalChat(
+                chatRequest.getQuery(),
+                chatRequest.getHistory(),
+                chatRequest.getProfileContext()
+        );
+        return ResponseEntity.ok(Map.of("answer", answer));
+    }
+
+    @GetMapping("/documents/{documentId}/pages/{page}")
+    public ResponseEntity<?> getPageExcerpts(
+            @PathVariable Long documentId,
+            @PathVariable int page,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String username = authService.resolveUsername(authorization);
+        Map<String, Object> body = documentService.getPageExcerpts(documentId, page, username);
+        if (body.containsKey("error")) {
+            String err = (String) body.get("error");
+            if ("NOT_FOUND".equals(err)) return ResponseEntity.notFound().build();
+            if ("FORBIDDEN".equals(err)) return ResponseEntity.status(403).body(body);
+            return ResponseEntity.badRequest().body(body);
+        }
+        return ResponseEntity.ok(body);
+    }
+
     @GetMapping(path = "/documents/{documentId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamDocumentStatus(@PathVariable Long documentId,
-                                           @RequestParam String token) {
+    public SseEmitter streamDocumentStatus(
+            @PathVariable Long documentId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam(required = false) String token) {
 
-        String cleanToken = token.replace("Bearer ", "").trim();
-        String username = authService.getUsernameFromToken(cleanToken);
+        String auth = authorization;
+        if ((auth == null || auth.isBlank()) && token != null && !token.isBlank()) {
+            auth = token.startsWith("Bearer ") ? token : "Bearer " + token;
+        }
 
+        String username = authService.resolveUsername(auth);
         Document doc = documentRepository.findById(documentId).orElse(null);
 
         if (doc == null || !doc.getUser().getUsername().equals(username)) {
@@ -109,16 +150,33 @@ public class DocumentController {
         return documentStatusSse.subscribe(documentId);
     }
 
-
-    // DTO
     public static class DocumentQueryRequest {
         private Long documentId;
         private String query;
+        private String profileContext;
 
         public Long getDocumentId() { return documentId; }
         public void setDocumentId(Long documentId) { this.documentId = documentId; }
 
         public String getQuery() { return query; }
         public void setQuery(String query) { this.query = query; }
+
+        public String getProfileContext() { return profileContext; }
+        public void setProfileContext(String profileContext) { this.profileContext = profileContext; }
+    }
+
+    public static class GeneralChatRequest {
+        private String query;
+        private List<Map<String, String>> history;
+        private String profileContext;
+
+        public String getQuery() { return query; }
+        public void setQuery(String query) { this.query = query; }
+
+        public List<Map<String, String>> getHistory() { return history; }
+        public void setHistory(List<Map<String, String>> history) { this.history = history; }
+
+        public String getProfileContext() { return profileContext; }
+        public void setProfileContext(String profileContext) { this.profileContext = profileContext; }
     }
 }

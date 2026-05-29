@@ -67,6 +67,13 @@
             <version>2.9.0</version>
         </dependency>
 
+        <!-- Page-by-page PDF extraction for large books -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>2.0.31</version>
+        </dependency>
+
         <!-- ✅ Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

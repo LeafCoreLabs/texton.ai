@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
@@ -67,9 +68,13 @@ public class JwtService {
         return extractClaim(token, Claims::getExpiration).before(new Date());
     }
 
-    // ✅ Correct decode + convert secret key into HMAC key
     private Key getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secretKey);
+        } catch (IllegalArgumentException e) {
+            keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+        }
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }

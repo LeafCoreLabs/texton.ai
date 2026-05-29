@@ -57,11 +57,8 @@ public class SecurityConfig {
                 // ✅ Public endpoints
                 .requestMatchers("/auth/**").permitAll()
 
-                // ✅ SSE stream — must be open
-                .requestMatchers("/api/documents/*/stream").permitAll()
-
-                // ✅ User must be authenticated to list or upload documents
-                .requestMatchers("/api/**").authenticated()
+                // Public document API (guest user on backend when no JWT)
+                .requestMatchers("/api/**").permitAll()
 
                 // ✅ H2 console
                 .requestMatchers("/h2-console/**").permitAll()
@@ -106,7 +103,8 @@ public class SecurityConfig {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "http://localhost:3000"
+                "http://localhost:3000",
+                "http://127.0.0.1:5173"
         ));
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("*"));

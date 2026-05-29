@@ -2,8 +2,271 @@
 @tailwind components;
 @tailwind utilities;
 
-/* This file imports Tailwind's three main layers. 
-  The 'base' layer includes the custom font definitions (Poppins) 
-  and default styles configured in tailwind.config.js, 
-  which is why we don't need to manually import the font here.
-*/
+:root {
+  --chat-surface: #ffffff;
+  --chat-surface-muted: #f8fafc;
+  --chat-surface-accent: #fafbff;
+  --chat-border: #f1f5f9;
+  --chat-border-strong: #e2e8f0;
+}
+
+@layer components {
+  .chat-app-shell {
+    @apply bg-white text-slate-900;
+  }
+
+  .chat-main {
+    @apply bg-white;
+  }
+
+  .chat-topbar {
+    @apply shrink-0 border-b border-slate-100 bg-white;
+  }
+
+  .chat-thread {
+    @apply bg-white;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chat-thread {
+      scroll-behavior: auto;
+    }
+  }
+
+  .chat-overlay-scrim {
+    @apply absolute inset-0 z-[25] cursor-default bg-slate-900/30 backdrop-blur-[2px];
+  }
+
+  .chat-overlay {
+    @apply absolute inset-0 z-[30] flex flex-col bg-white shadow-xl;
+  }
+
+  .chat-overlay-panel {
+    @apply absolute inset-0 z-[30] mx-auto flex w-full max-w-3xl flex-col border-x border-slate-200 bg-white shadow-xl;
+  }
+
+  .chat-prose-markdown a {
+    @apply text-indigo-600 underline;
+  }
+
+  .chat-side-panel {
+    @apply absolute inset-y-0 right-0 z-[35] flex w-full max-w-sm flex-col border-l border-slate-200/90 bg-white shadow-2xl will-change-transform;
+  }
+
+  .chat-side-panel-wide {
+    @apply absolute inset-y-0 right-0 z-[35] w-full max-w-xs border-l border-slate-200/90 bg-white shadow-2xl will-change-transform;
+  }
+
+  .auth-mesh-bg {
+    background: linear-gradient(135deg, #1e1b4b 0%, #3730a3 40%, #5b21b6 100%);
+  }
+
+  .auth-panel-dots {
+    background-color: #f8fafc;
+    background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .glass-card {
+    @apply rounded-2xl border border-white/80 bg-white/95 shadow-2xl shadow-slate-300/30 backdrop-blur-md;
+  }
+
+  .auth-input {
+    @apply w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-slate-800 placeholder-slate-400 outline-none transition duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25;
+  }
+
+  .auth-field-group:focus-within .auth-field-icon {
+    @apply text-indigo-500;
+  }
+
+  .auth-field-group:focus-within .auth-input {
+    @apply border-indigo-400 shadow-sm shadow-indigo-500/10;
+  }
+
+  .auth-btn-primary {
+    @apply flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 font-semibold text-white shadow-lg shadow-indigo-500/30 transition duration-200 hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
+  }
+
+  .auth-btn-secondary {
+    @apply flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white py-3 font-medium text-slate-700 transition duration-200 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98];
+  }
+
+  .chat-sidebar {
+    @apply border-r border-slate-800/80 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950;
+  }
+
+  .chat-new-btn {
+    @apply flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-2.5 text-sm font-medium text-slate-100 transition hover:bg-white/10;
+  }
+
+  .chat-history-item {
+    @apply flex items-center gap-2 rounded-lg px-3 py-2.5 text-slate-300 transition-all duration-200 ease-out hover:bg-white/10;
+  }
+
+  .chat-history-item-active {
+    @apply bg-white/15 text-white;
+  }
+
+  .chat-sidebar-link {
+    @apply flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition-all duration-200 ease-out hover:bg-white/5 hover:text-slate-200;
+  }
+
+  .chat-composer-wrap {
+    @apply shrink-0 border-t border-slate-100 bg-white;
+  }
+
+  .chat-composer {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .doc-upload-zone {
+    @apply rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 p-8;
+  }
+
+  .doc-row {
+    @apply flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md;
+  }
+
+  .doc-row-active {
+    @apply border-indigo-300 ring-2 ring-indigo-500/20;
+  }
+
+  .doc-status-pill {
+    @apply rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide;
+  }
+
+  .doc-status-done {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .doc-status-fail {
+    @apply bg-red-100 text-red-800;
+  }
+
+  .doc-status-pending {
+    @apply bg-amber-100 text-amber-900 animate-pulse;
+  }
+
+  .typing-dot {
+    @apply h-2 w-2 rounded-full bg-indigo-400;
+    animation: typingBounce 1.2s ease-in-out infinite;
+  }
+
+  .animation-delay-150 {
+    animation-delay: 0.15s;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 0.3s;
+  }
+
+  .chat-welcome-bg {
+    background-color: var(--chat-surface-accent);
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 42%),
+      radial-gradient(circle at 80% 10%, rgba(139, 92, 246, 0.1) 0%, transparent 40%),
+      radial-gradient(circle at 50% 90%, rgba(217, 70, 239, 0.06) 0%, transparent 45%),
+      radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px;
+  }
+
+  .chat-welcome-orb {
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.5;
+    animation: welcomeOrbFloat 12s ease-in-out infinite;
+  }
+
+  .chat-welcome-orb-1 {
+    width: 280px;
+    height: 280px;
+    top: -80px;
+    left: -60px;
+    background: rgba(99, 102, 241, 0.35);
+  }
+
+  .chat-welcome-orb-2 {
+    width: 220px;
+    height: 220px;
+    top: 40%;
+    right: -40px;
+    background: rgba(167, 139, 250, 0.3);
+    animation-delay: -4s;
+  }
+
+  .chat-welcome-orb-3 {
+    width: 200px;
+    height: 200px;
+    bottom: -60px;
+    left: 35%;
+    background: rgba(236, 72, 153, 0.2);
+    animation-delay: -8s;
+  }
+
+  .chat-welcome-glow {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.45), rgba(168, 85, 247, 0.35));
+  }
+
+  .chat-welcome-title {
+    background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 45%, #7c3aed 70%, #a855f7 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .chat-welcome-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm;
+  }
+
+  .chat-welcome-card {
+    @apply flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-300;
+    @apply hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-500/10;
+  }
+
+  .chat-welcome-card-icon {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 text-indigo-600 ring-1 ring-indigo-100/80 transition duration-300;
+  }
+
+  .chat-welcome-card:hover .chat-welcome-card-icon {
+    @apply from-indigo-100 to-violet-100 text-indigo-700 shadow-sm;
+  }
+}
+
+@keyframes welcomeOrbFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(12px, -18px) scale(1.05);
+  }
+  66% {
+    transform: translate(-10px, 12px) scale(0.95);
+  }
+}
+
+.chat-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+.chat-scrollbar-light::-webkit-scrollbar {
+  width: 8px;
+}
+.chat-scrollbar-light::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}

@@ -1,5 +1,6 @@
 package com.texton.backend.service;
 
+import com.texton.backend.config.GuestAuth;
 import com.texton.backend.models.User;
 import com.texton.backend.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +51,6 @@ public class AuthService {
         try {
             if (token == null) return null;
 
-            // Remove "Bearer " prefix if present
             if (token.startsWith("Bearer ")) {
                 token = token.substring(7);
             }
@@ -58,8 +58,18 @@ public class AuthService {
             return jwtService.extractUsername(token);
 
         } catch (Exception e) {
-            System.out.println("❌ Invalid token in SSE: " + e.getMessage());
             return null;
         }
+    }
+
+    /** JWT user when present and valid; otherwise shared guest account for public access. */
+    public String resolveUsername(String authorizationHeader) {
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            String username = getUsernameFromToken(authorizationHeader.trim());
+            if (username != null && !username.isBlank()) {
+                return username;
+            }
+        }
+        return GuestAuth.GUEST_USERNAME;
     }
 }

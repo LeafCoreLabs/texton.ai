@@ -6,6 +6,7 @@
 
 
 # Ignore config / secrets
+.env
 backend/src/main/resources/application.yml
 
 # Frontend dependencies

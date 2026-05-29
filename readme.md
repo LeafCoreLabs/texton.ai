@@ -171,7 +171,30 @@ D:\Texton.ai\
 ````
 
 
-🐳 Docker Services
+🐳 Run the Full Stack with Docker (recommended)
+
+From the project root:
+
+````bash
+cp .env.example .env
+# Edit .env — set GEMINI_API_KEY and JWT_SECRET
+
+docker compose up --build
+````
+
+| Service | URL |
+| :--- | :--- |
+| Frontend (UI) | http://localhost:5173 |
+| Backend API | http://localhost:8080 |
+| ChromaDB | http://localhost:8000 |
+| Apache Tika | http://localhost:9998 |
+| Garage S3 API | http://localhost:3900 |
+
+> **Note:** The backend still uses embedded Tika, in-memory vector search, and local file storage by default. ChromaDB, Garage, and Tika containers run alongside the app for future integration and local parity with production.
+
+---
+
+🐳 Docker Services (infrastructure only)
 Texton.ai uses 3 microservices:
 
 1️⃣ Apache Tika (Port 9998)
