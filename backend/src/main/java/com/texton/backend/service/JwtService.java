@@ -1,4 +1,5 @@
 package com.texton.backend.service;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -10,43 +11,78 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
 
+    public record TokenPair(String token, String jti) {}
+
     @Value("${application.security.jwt.secret-key}")
-    private String secretKey;  // ✅ name MUST be secretKey, not SECRET
+    private String secretKey;
 
-    @Value("${application.security.jwt.expiration}")
-    private long expirationTime; // ✅ injected correctly
+    @Value("${application.security.jwt.access-expiration:900000}")
+    private long accessExpirationMs;
 
-    // ----------------- Public Methods -----------------
+    public TokenPair generateAccessToken(String username, String role) {
+        String jti = UUID.randomUUID().toString();
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", role);
+        claims.put("jti", jti);
+        String token = createToken(claims, username, accessExpirationMs);
+        return new TokenPair(token, jti);
+    }
 
-    public String generateToken(String username) {
-        return createToken(new HashMap<>(), username);
+    /** @deprecated Use generateAccessToken */
+    @Deprecated
+    public String generateToken(String username, String role) {
+        return generateAccessToken(username, role).token();
     }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
-    public boolean validateToken(String token, UserDetails userDetails) {
-        String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
     }
 
-    // ----------------- Internal Helpers -----------------
+    public String extractJti(String token) {
+        return extractClaim(token, claims -> claims.get("jti", String.class));
+    }
 
-    private String createToken(Map<String, Object> claims, String username) {
+    public Instant extractExpiration(String token) {
+        Date date = extractClaim(token, Claims::getExpiration);
+        return date != null ? date.toInstant() : null;
+    }
+
+    public boolean validateToken(String token, UserDetails userDetails) {
+        String username = extractUsername(token);
+        if (!username.equals(userDetails.getUsername()) || isTokenExpired(token)) {
+            return false;
+        }
+        String tokenRole = extractRole(token);
+        if (tokenRole == null) {
+            return false;
+        }
+        String expectedRole = userDetails.getAuthorities().stream()
+                .findFirst()
+                .map(a -> a.getAuthority().replace("ROLE_", "").toLowerCase())
+                .orElse("");
+        return tokenRole.equalsIgnoreCase(expectedRole);
+    }
+
+    private String createToken(Map<String, Object> claims, String username, long expirationMs) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
+                .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }

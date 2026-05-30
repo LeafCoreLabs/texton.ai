@@ -39,6 +39,16 @@ public final class DocumentFileValidator {
             return "Unsupported file type. Supported: PDF, Word, Excel, PowerPoint, "
                     + "OpenDocument, RTF, HTML, plain text, Markdown, CSV, EPUB, and similar document formats.";
         }
+        String contentType = file.getContentType();
+        if (contentType != null && !contentType.isBlank()) {
+            String lower = contentType.toLowerCase();
+            if (lower.startsWith("image/") || lower.startsWith("video/") || lower.startsWith("audio/")
+                    || lower.contains("javascript") || lower.contains("octet-stream")) {
+                if (!lower.contains("pdf") && !ext.equals("pdf")) {
+                    return "File content type does not match an allowed document format.";
+                }
+            }
+        }
         return null;
     }
 

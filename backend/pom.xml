@@ -82,6 +82,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- PostgreSQL (production) -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- ✅ H2 DB -->
         <dependency>
             <groupId>com.h2database</groupId>

@@ -3,7 +3,6 @@ package com.texton.backend.controllers;
 import com.texton.backend.models.*;
 import com.texton.backend.service.AuthService;
 import com.texton.backend.service.PackService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,99 +14,86 @@ import java.util.Map;
 @RequestMapping("/api")
 public class PackController {
 
-    @Autowired
-    private PackService packService;
-    @Autowired
-    private AuthService authService;
+    private final PackService packService;
+    private final AuthService authService;
+
+    public PackController(PackService packService, AuthService authService) {
+        this.packService = packService;
+        this.authService = authService;
+    }
 
     @GetMapping("/subjects")
-    public ResponseEntity<List<Subject>> listSubjects(
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return ResponseEntity.ok(packService.listSubjects(authService.resolveUsername(authorization)));
+    public ResponseEntity<List<Subject>> listSubjects() {
+        return ResponseEntity.ok(packService.listSubjects(authService.resolveGuestOrUser()));
     }
 
     @PostMapping("/subjects")
-    public ResponseEntity<Subject> createSubject(
-            @RequestBody SubjectRequest req,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ResponseEntity<Subject> createSubject(@RequestBody SubjectRequest req) {
         return ResponseEntity.ok(packService.createSubject(
-                req.getName(), req.getColor(), authService.resolveUsername(authorization)));
+                req.getName(), req.getColor(), authService.requireAuthenticatedUsername()));
     }
 
     @GetMapping("/packs")
-    public ResponseEntity<List<StudyPack>> listPacks(
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return ResponseEntity.ok(packService.listPacks(authService.resolveUsername(authorization)));
+    public ResponseEntity<List<StudyPack>> listPacks() {
+        return ResponseEntity.ok(packService.listPacks(authService.resolveGuestOrUser()));
     }
 
     @PostMapping("/packs")
-    public ResponseEntity<StudyPack> createPack(
-            @RequestBody PackRequest req,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ResponseEntity<StudyPack> createPack(@RequestBody PackRequest req) {
         return ResponseEntity.ok(packService.createPack(
                 req.getName(), req.getSubjectId(), req.getDocumentIds(),
-                authService.resolveUsername(authorization)));
+                authService.requireAuthenticatedUsername()));
     }
 
     @PutMapping("/packs/{packId}/documents")
     public ResponseEntity<StudyPack> updatePackDocuments(
             @PathVariable Long packId,
-            @RequestBody PackRequest req,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+            @RequestBody PackRequest req) {
         return ResponseEntity.ok(packService.updatePackDocuments(
-                packId, req.getDocumentIds(), authService.resolveUsername(authorization)));
+                packId, req.getDocumentIds(), authService.requireAuthenticatedUsername()));
     }
 
     @DeleteMapping("/packs/{packId}")
-    public ResponseEntity<?> deletePack(
-            @PathVariable Long packId,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        packService.deletePack(packId, authService.resolveUsername(authorization));
+    public ResponseEntity<?> deletePack(@PathVariable Long packId) {
+        packService.deletePack(packId, authService.requireAuthenticatedUsername());
         return ResponseEntity.ok(Map.of("message", "Pack deleted"));
     }
 
     @GetMapping("/exams")
-    public ResponseEntity<List<Exam>> listExams(
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return ResponseEntity.ok(packService.listExams(authService.resolveUsername(authorization)));
+    public ResponseEntity<List<Exam>> listExams() {
+        return ResponseEntity.ok(packService.listExams(authService.resolveGuestOrUser()));
     }
 
     @PostMapping("/exams")
-    public ResponseEntity<Exam> createExam(
-            @RequestBody ExamRequest req,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ResponseEntity<Exam> createExam(@RequestBody ExamRequest req) {
         LocalDate date = req.getExamDate() != null ? LocalDate.parse(req.getExamDate()) : null;
         return ResponseEntity.ok(packService.createExam(
                 req.getTitle(), date, req.getSubjectId(), req.getPackId(), req.getSyllabusNotes(),
-                authService.resolveUsername(authorization)));
+                authService.requireAuthenticatedUsername()));
     }
 
     @GetMapping("/exams/{examId}/topics")
-    public ResponseEntity<List<TopicProgress>> listTopics(
-            @PathVariable Long examId,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return ResponseEntity.ok(packService.listTopics(examId, authService.resolveUsername(authorization)));
+    public ResponseEntity<List<TopicProgress>> listTopics(@PathVariable Long examId) {
+        return ResponseEntity.ok(packService.listTopics(examId, authService.requireAuthenticatedUsername()));
     }
 
     @PostMapping("/exams/{examId}/topics/generate")
     public ResponseEntity<List<TopicProgress>> generateTopics(
             @PathVariable Long examId,
-            @RequestBody Map<String, Long> body,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+            @RequestBody Map<String, Long> body) {
         Long documentId = body != null ? body.get("documentId") : null;
         Long packId = body != null ? body.get("packId") : null;
         return ResponseEntity.ok(packService.generateTopicsForExam(
-                examId, documentId, packId, authService.resolveUsername(authorization)));
+                examId, documentId, packId, authService.requireAuthenticatedUsername()));
     }
 
     @PatchMapping("/topics/{topicId}")
     public ResponseEntity<TopicProgress> updateTopic(
             @PathVariable Long topicId,
-            @RequestBody Map<String, String> body,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+            @RequestBody Map<String, String> body) {
         TopicProgress.TopicStatus status = TopicProgress.TopicStatus.valueOf(body.get("status"));
         return ResponseEntity.ok(packService.updateTopicStatus(
-                topicId, status, authService.resolveUsername(authorization)));
+                topicId, status, authService.requireAuthenticatedUsername()));
     }
 
     public static class SubjectRequest {

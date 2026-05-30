@@ -7,17 +7,15 @@ spring:
       max-file-size: 250MB
       max-request-size: 260MB
   datasource:
-    url: jdbc:h2:file:/data/texton;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  h2:
-    console:
-      enabled: false
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:texton}
+    username: ${POSTGRES_USER:texton}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 gemini:
   api-key: ${GEMINI_API_KEY:}
@@ -29,10 +27,9 @@ groq:
 application:
   security:
     jwt:
-      secret-key: ${JWT_SECRET:change-this-jwt-secret-for-docker}
+      secret-key: ${JWT_SECRET}
       access-expiration: 900000
       refresh-expiration-days: 7
-      expiration: 900000
 
 services:
   apache-tika:
@@ -43,19 +40,16 @@ ai:
     url: http://chromadb:8000
     collection: user-document-embeddings
 
-# Large-book indexing (5000+ page PDFs): page-aware chunks + wide reranked RAG
 texton:
   security:
-    cors-origins:
-      - http://localhost:5173
-      - http://127.0.0.1:5173
-    cookie-secure: false
+    cookie-secure: true
     access-token-max-age-seconds: 900
     refresh-token-max-age-seconds: 604800
-    guest-chat-limit-per-hour: 30
+    guest-chat-limit-per-hour: 20
     auth-chat-limit-per-hour: 200
+    cors-origins: ${TEXTON_CORS_ORIGINS:https://localhost}
   encryption:
-    key: ${ENCRYPTION_KEY:}
+    key: ${ENCRYPTION_KEY}
   indexing:
     max-upload-mb: 250
     max-pages: 6000

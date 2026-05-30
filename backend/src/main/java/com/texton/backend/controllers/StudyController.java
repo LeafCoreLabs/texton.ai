@@ -4,7 +4,6 @@ import com.texton.backend.models.StudyArtifact;
 import com.texton.backend.service.AuthService;
 import com.texton.backend.service.PracticeService;
 import com.texton.backend.service.StudyService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,20 +14,24 @@ import java.util.Map;
 @RequestMapping("/api/study")
 public class StudyController {
 
-    @Autowired
-    private StudyService studyService;
-    @Autowired
-    private PracticeService practiceService;
-    @Autowired
-    private AuthService authService;
+    private final StudyService studyService;
+    private final PracticeService practiceService;
+    private final AuthService authService;
+
+    public StudyController(StudyService studyService,
+                           PracticeService practiceService,
+                           AuthService authService) {
+        this.studyService = studyService;
+        this.practiceService = practiceService;
+        this.authService = authService;
+    }
 
     @PostMapping("/{toolId}")
     public ResponseEntity<?> runTool(
             @PathVariable String toolId,
-            @RequestBody StudyToolRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
+            @RequestBody StudyToolRequest request) {
 
-        String username = authService.resolveUsername(authorization);
+        String username = authService.requireAuthenticatedUsername();
         Map<String, Object> result = studyService.runTool(
                 toolId,
                 request.getDocumentId(),
@@ -46,17 +49,14 @@ public class StudyController {
     }
 
     @GetMapping("/artifacts")
-    public ResponseEntity<List<Map<String, Object>>> listArtifacts(
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        String username = authService.resolveUsername(authorization);
+    public ResponseEntity<List<Map<String, Object>>> listArtifacts() {
+        String username = authService.requireAuthenticatedUsername();
         return ResponseEntity.ok(studyService.listArtifactsSummary(username));
     }
 
     @GetMapping("/artifacts/{id}")
-    public ResponseEntity<?> getArtifact(
-            @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        String username = authService.resolveUsername(authorization);
+    public ResponseEntity<?> getArtifact(@PathVariable Long id) {
+        String username = authService.requireAuthenticatedUsername();
         StudyArtifact a = studyService.getArtifact(id, username);
         if (a == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(Map.of(
@@ -70,10 +70,8 @@ public class StudyController {
     }
 
     @PostMapping("/reviews/rate")
-    public ResponseEntity<?> rateCard(
-            @RequestBody RateCardRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        String username = authService.resolveUsername(authorization);
+    public ResponseEntity<?> rateCard(@RequestBody RateCardRequest request) {
+        String username = authService.requireAuthenticatedUsername();
         try {
             var updated = practiceService.rateCard(
                     request.getArtifactId(),
@@ -91,17 +89,14 @@ public class StudyController {
     }
 
     @GetMapping("/reviews/due")
-    public ResponseEntity<?> dueReviews(
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        String username = authService.resolveUsername(authorization);
+    public ResponseEntity<?> dueReviews() {
+        String username = authService.requireAuthenticatedUsername();
         return ResponseEntity.ok(practiceService.getDueSummary(username));
     }
 
     @PostMapping("/revision-plan")
-    public ResponseEntity<?> revisionPlan(
-            @RequestBody RevisionPlanRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        String username = authService.resolveUsername(authorization);
+    public ResponseEntity<?> revisionPlan(@RequestBody RevisionPlanRequest request) {
+        String username = authService.requireAuthenticatedUsername();
         Map<String, Object> result = studyService.runRevisionPlan(
                 request.getExamId(),
                 request.getPackId(),

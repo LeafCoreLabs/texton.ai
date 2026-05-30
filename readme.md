@@ -190,6 +190,31 @@ docker compose up --build
 | Apache Tika | http://localhost:9998 |
 | Garage S3 API | http://localhost:3900 |
 
+### Security setup
+
+Copy `.env.example` to `.env` and set at minimum:
+
+- `JWT_SECRET` — at least 32 random characters
+- `ENCRYPTION_KEY` — generate with `openssl rand -base64 32` (AES-256 file encryption at rest)
+- `SUPERUSER_PASSWORD` — bootstrap admin password (default dev: `admin123`)
+
+**Production** (nginx TLS, internalized services):
+
+````bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+````
+
+Place TLS certs in `./certs/fullchain.pem` and `./certs/privkey.pem`. Only ports 80/443 are exposed in prod mode.
+
+**Security features:** HttpOnly SameSite=Strict JWT cookies with 15-minute access tokens and 7-day rotating refresh tokens, token revocation on logout, filter-layer API protection, AES-256-GCM encrypted uploads, PostgreSQL in production, nginx security headers, login/signup/chat rate limiting, admin RBAC, security audit logging, and network isolation for internal services.
+
+**Production checklist:**
+1. Set strong values in `.env` for `JWT_SECRET`, `ENCRYPTION_KEY`, `SUPERUSER_PASSWORD`, `POSTGRES_PASSWORD`
+2. Run `docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build`
+3. Mount TLS certs at `./certs/fullchain.pem` and `./certs/privkey.pem`
+4. Set `TEXTON_CORS_ORIGINS` to your HTTPS domain
+5. Do not expose backend or infrastructure ports on the host
+
 > **Note:** The backend still uses embedded Tika, in-memory vector search, and local file storage by default. ChromaDB, Garage, and Tika containers run alongside the app for future integration and local parity with production.
 
 ---
@@ -242,7 +267,8 @@ Frontend runs on: http://localhost:5173
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | /auth/signup | POST | Register user |
-| /auth/login | POST | Login, returns JWT |
+| /auth/login | POST | Login, sets HttpOnly JWT cookie |
+| /auth/logout | POST | Clears auth cookie |
 | /api/upload | POST | Upload document |
 | /api/documents | GET | Get user's documents |
 | /api/query | POST | Ask question about document |

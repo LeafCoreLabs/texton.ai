@@ -1,12 +1,10 @@
 package com.texton.backend.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 /**
  * Tunables for large-book ingestion (multi-thousand page PDFs) and high-recall RAG.
  */
-@Component
 @ConfigurationProperties(prefix = "texton.indexing")
 public class DocumentIndexingProperties {
 

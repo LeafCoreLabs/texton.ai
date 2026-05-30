@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import apiClient from './api/client';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Power,
@@ -23,9 +23,8 @@ import ChatWorkspace from './components/chat/ChatWorkspace';
 import DocumentsPanel from './components/chat/DocumentsPanel';
 import StudyToolsPanel from './components/study/StudyToolsPanel';
 import StudyHubPanel from './components/study/StudyHubPanel';
-import OnboardingModal from './components/study/OnboardingModal';
 import OverlayScrim from './components/chat/OverlayScrim';
-import { loadStudentProfile, profileContextLine, isOnboardingDone, setOnboardingDone } from './utils/studentProfile';
+import { loadStudentProfile, profileContextLine } from './utils/studentProfile';
 import FlashcardViewer from './components/study/FlashcardViewer';
 import QuizViewer from './components/study/QuizViewer';
 import { downloadText } from './utils/studyExport';
@@ -61,7 +60,6 @@ const buildChatHistory = (messages) =>
 const App = () => {
   const [hydratedAuth] = useState(() => loadAuth());
   const [step, setStep] = useState('dashboard');
-  const [token, setToken] = useState(hydratedAuth?.token ?? null);
   const [role, setRole] = useState(hydratedAuth?.role ?? null);
   const [username, setUsername] = useState(hydratedAuth?.username ?? null);
   const [message, setMessage] = useState({ type: null, text: null });
@@ -82,7 +80,7 @@ const App = () => {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const isAdmin = role === 'admin';
   const isStudent = role === 'user';
-  const isLoggedIn = Boolean(token && (isAdmin || isStudent));
+  const isLoggedIn = Boolean(username && (isAdmin || isStudent));
 
   const [chatStorageKey, setChatStorageKey] = useState(() => chatUserKey(hydratedAuth));
 
@@ -103,8 +101,6 @@ const App = () => {
   const [studyLoading, setStudyLoading] = useState(false);
   const [dueReviews, setDueReviews] = useState([]);
   const [artifacts, setArtifacts] = useState([]);
-  const [onboardingStep, setOnboardingStep] = useState(0);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const [chatSessions, setChatSessions] = useState(() => loadSessions(chatUserKey(hydratedAuth)));
   const [activeSessionId, setActiveSessionId] = useState(() =>
@@ -144,7 +140,38 @@ const App = () => {
     ? {}
     : { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
-  const clearMessage = () => setMessage({ type: null, text: null });
+  const clearMessage = useCallback(() => setMessage({ type: null, text: null }), []);
+  const toastTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!message.text) {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+      return;
+    }
+    const duration = message.type === 'error' ? 6500 : 4500;
+    toastTimerRef.current = setTimeout(() => {
+      setMessage({ type: null, text: null });
+      toastTimerRef.current = null;
+    }, duration);
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
+  }, [message.text, message.type]);
+
+  useEffect(() => {
+    if (!uploadMessage || uploadMessage.startsWith('Uploading')) return;
+    const duration = uploadMessage.includes('failed') || uploadMessage.includes('Please select')
+      ? 6500
+      : 5000;
+    const t = setTimeout(() => setUploadMessage(''), duration);
+    return () => clearTimeout(t);
+  }, [uploadMessage]);
 
   const openPanel = useCallback(panel => {
     setActivePanel(prev => (prev === panel ? null : panel));
@@ -159,11 +186,6 @@ const App = () => {
     setChatSessions(sessions);
     setActiveSessionId(activeId);
   }, []);
-
-  const authHeader = useCallback(() => {
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
-  }, [token]);
 
   const persistSessions = useCallback((sessions, activeId) => {
     setChatSessions(sessions);
@@ -261,8 +283,12 @@ const App = () => {
   }, [documents, chatStorageKey]);
 
   const fetchDocuments = useCallback(async () => {
+    if (!isLoggedIn) {
+      setDocuments([]);
+      return;
+    }
     try {
-      const res = await axios.get(`${API_BASE_URL}/documents`, { headers: authHeader() });
+      const res = await apiClient.get(`${API_BASE_URL}/documents`);
       const list = Array.isArray(res.data) ? res.data : [];
       setDocuments(list);
       list.forEach(d => {
@@ -270,15 +296,14 @@ const App = () => {
         else cleanupDocListeners(d.id);
       });
     } catch {}
-  }, [token, authHeader]);
+  }, [isLoggedIn]);
 
   const attachStatusListeners = useCallback((docId) => {
+    if (!isLoggedIn) return;
     if (!sseMapRef.current.has(docId)) {
       try {
-        const streamUrl = token
-          ? `${API_BASE_URL}/documents/${docId}/stream?token=${encodeURIComponent(token)}`
-          : `${API_BASE_URL}/documents/${docId}/stream`;
-        const es = new EventSource(streamUrl);
+        const streamUrl = `${API_BASE_URL}/documents/${docId}/stream`;
+        const es = new EventSource(streamUrl, { withCredentials: true });
         sseMapRef.current.set(docId, es);
         const applyDocPatch = (patch) => {
           setDocuments(prev =>
@@ -324,13 +349,14 @@ const App = () => {
       }
     }
     ensurePolling(docId);
-  }, [token]);
+  }, [isLoggedIn]);
 
   const ensurePolling = (docId) => {
+    if (!isLoggedIn) return;
     if (pollTimersRef.current.has(docId)) return;
     const id = setInterval(async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/documents`, { headers: authHeader() });
+        const res = await apiClient.get(`${API_BASE_URL}/documents`);
         const list = Array.isArray(res.data) ? res.data : [];
         const updated = list.find(d => d.id === docId);
         if (updated) {
@@ -371,33 +397,41 @@ const App = () => {
   const fetchStudyData = useCallback(async () => {
     try {
       const [subRes, packRes, examRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/subjects`, { headers: authHeader() }),
-        axios.get(`${API_BASE_URL}/packs`, { headers: authHeader() }),
-        axios.get(`${API_BASE_URL}/exams`, { headers: authHeader() }),
+        apiClient.get(`${API_BASE_URL}/subjects`),
+        apiClient.get(`${API_BASE_URL}/packs`),
+        apiClient.get(`${API_BASE_URL}/exams`),
       ]);
       setSubjects(Array.isArray(subRes.data) ? subRes.data : []);
       setPacks(Array.isArray(packRes.data) ? packRes.data : []);
       setExams(Array.isArray(examRes.data) ? examRes.data : []);
     } catch {}
-  }, [authHeader]);
+  }, []);
 
   const fetchDueReviews = useCallback(async () => {
+    if (!isLoggedIn) {
+      setDueReviews([]);
+      return;
+    }
     try {
-      const res = await axios.get(`${API_BASE_URL}/study/reviews/due`, { headers: authHeader() });
+      const res = await apiClient.get(`${API_BASE_URL}/study/reviews/due`);
       setDueReviews(Array.isArray(res.data) ? res.data : []);
     } catch {
       setDueReviews([]);
     }
-  }, [authHeader]);
+  }, [isLoggedIn]);
 
   const fetchArtifacts = useCallback(async () => {
+    if (!isLoggedIn) {
+      setArtifacts([]);
+      return;
+    }
     try {
-      const res = await axios.get(`${API_BASE_URL}/study/artifacts`, { headers: authHeader() });
+      const res = await apiClient.get(`${API_BASE_URL}/study/artifacts`);
       setArtifacts(Array.isArray(res.data) ? res.data : []);
     } catch {
       setArtifacts([]);
     }
-  }, [authHeader]);
+  }, [isLoggedIn]);
 
   const refreshDashboardData = useCallback(() => {
     fetchStudyData();
@@ -411,23 +445,21 @@ const App = () => {
       return;
     }
     try {
-      const res = await axios.get(`${API_BASE_URL}/exams/${examId}/topics`, { headers: authHeader() });
+      const res = await apiClient.get(`${API_BASE_URL}/exams/${examId}/topics`);
       setTopics(Array.isArray(res.data) ? res.data : []);
     } catch {
       setTopics([]);
     }
-  }, [authHeader]);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (step === 'dashboard') {
-      fetchDocuments();
-      refreshDashboardData();
-      if (!isOnboardingDone()) {
-        setShowOnboarding(true);
-        setOnboardingStep(0);
+      if (isLoggedIn) {
+        fetchDocuments();
+        refreshDashboardData();
       }
     }
-  }, [step, token, fetchDocuments, refreshDashboardData]);
+  }, [step, isLoggedIn, fetchDocuments, refreshDashboardData]);
 
   useEffect(() => {
     if (selectedExamId) fetchTopics(selectedExamId);
@@ -446,10 +478,9 @@ const App = () => {
   const applyAuth = useCallback(
     (data) => {
       const uname = data.username || loginData.username;
-      setToken(data.access_token);
       setRole(data.role);
       setUsername(uname);
-      saveAuth({ token: data.access_token, role: data.role, username: uname });
+      saveAuth({ role: data.role, username: uname });
       switchToChatUser(uname);
       setStep('dashboard');
       setLoginData({ username: '', password: '' });
@@ -467,7 +498,7 @@ const App = () => {
     }
     setLoading(true);
     try {
-      const response = await axios.post(`${AUTH_API_URL}/login`, {
+      const response = await apiClient.post(`${AUTH_API_URL}/login`, {
         username: loginData.username,
         password: loginData.password,
         user_type: 'admin',
@@ -494,7 +525,7 @@ const App = () => {
     }
     setLoading(true);
     try {
-      const response = await axios.post(`${AUTH_API_URL}/login`, {
+      const response = await apiClient.post(`${AUTH_API_URL}/login`, {
         username: loginData.username,
         password: loginData.password,
         user_type: 'user',
@@ -526,7 +557,7 @@ const App = () => {
     }
     setLoading(true);
     try {
-      await axios.post(`${AUTH_API_URL}/signup`, { ...signupData, role_type: 'user' });
+      await apiClient.post(`${AUTH_API_URL}/signup`, { ...signupData, role_type: 'user' });
       setMessage({ type: 'success', text: 'Account created! Sign in to access your saved study data.' });
       setStep('student_login');
       setSignupData({
@@ -545,9 +576,13 @@ const App = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiClient.post(`${AUTH_API_URL}/logout`);
+    } catch {
+      /* clear local state even if logout request fails */
+    }
     clearAuth();
-    setToken(null);
     setRole(null);
     setUsername(null);
     setStep('dashboard');
@@ -578,9 +613,7 @@ const App = () => {
     try {
       let row = artifactRow;
       if (!row?.contentJson) {
-        const res = await axios.get(`${API_BASE_URL}/study/artifacts/${artifactId}`, {
-          headers: authHeader(),
-        });
+        const res = await apiClient.get(`${API_BASE_URL}/study/artifacts/${artifactId}`);
         row = { ...res.data, contentJson: res.data.content };
       }
       const content = row.contentJson || row.content || '';
@@ -626,8 +659,8 @@ const App = () => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data', ...authHeader() },
+      const response = await apiClient.post(`${API_BASE_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       const newDoc = {
         id: response.data.documentId,
@@ -676,7 +709,7 @@ const App = () => {
         setLoading(false);
       }
     }
-  }, [authHeader, attachStatusListeners, fetchDocuments]);
+  }, [attachStatusListeners, fetchDocuments, chatStorageKey]);
 
   const handleFileChange = (e) => {
     setSelectedFile(e.target.files[0]);
@@ -731,10 +764,9 @@ const App = () => {
     setRunningStudyTool(toolId);
     setStudyLoading(true);
     try {
-      const res = await axios.post(
+      const res = await apiClient.post(
         `${API_BASE_URL}/study/${toolId}`,
-        { documentId: docId, packId: activePackId },
-        { headers: authHeader() }
+        { documentId: docId, packId: activePackId }
       );
       const content = res.data.content;
       const artifactId = res.data.artifactId;
@@ -799,17 +831,16 @@ const App = () => {
 
   const handleCreateSubject = async (name) => {
     try {
-      await axios.post(`${API_BASE_URL}/subjects`, { name }, { headers: authHeader() });
+      await apiClient.post(`${API_BASE_URL}/subjects`, { name });
       fetchStudyData();
     } catch {}
   };
 
   const handleCreatePack = async (name, documentIds) => {
     try {
-      await axios.post(
+      await apiClient.post(
         `${API_BASE_URL}/packs`,
-        { name, documentIds },
-        { headers: authHeader() }
+        { name, documentIds }
       );
       fetchStudyData();
       setMessage({ type: 'success', text: 'Study pack created!' });
@@ -820,7 +851,7 @@ const App = () => {
 
   const handleDeletePack = async (packId) => {
     try {
-      await axios.delete(`${API_BASE_URL}/packs/${packId}`, { headers: authHeader() });
+      await apiClient.delete(`${API_BASE_URL}/packs/${packId}`);
       if (selectedPackId === packId) setSelectedPackId(null);
       fetchStudyData();
     } catch {}
@@ -828,10 +859,9 @@ const App = () => {
 
   const handleCreateExam = async ({ title, examDate, packId: examPackId }) => {
     try {
-      const res = await axios.post(
+      const res = await apiClient.post(
         `${API_BASE_URL}/exams`,
-        { title, examDate: examDate || null, packId: examPackId || null },
-        { headers: authHeader() }
+        { title, examDate: examDate || null, packId: examPackId || null }
       );
       setExams(prev => [res.data, ...prev]);
       setSelectedExamId(res.data.id);
@@ -844,10 +874,9 @@ const App = () => {
       const body = {};
       if (documentId) body.documentId = documentId;
       if (packIdForTopics) body.packId = packIdForTopics;
-      const res = await axios.post(
+      const res = await apiClient.post(
         `${API_BASE_URL}/exams/${examId}/topics/generate`,
-        body,
-        { headers: authHeader() }
+        body
       );
       setTopics(Array.isArray(res.data) ? res.data : []);
     } catch {
@@ -860,10 +889,9 @@ const App = () => {
   const handleGenerateRevisionPlan = async ({ examId, packId, days }) => {
     setStudyLoading(true);
     try {
-      const res = await axios.post(
+      const res = await apiClient.post(
         `${API_BASE_URL}/study/revision-plan`,
-        { examId, packId, days, profileContext: getProfileContext() },
-        { headers: authHeader() }
+        { examId, packId, days, profileContext: getProfileContext() }
       );
       injectBotMessage(res.data.content, 'Revision plan');
       fetchArtifacts();
@@ -881,16 +909,15 @@ const App = () => {
 
   const handleUpdateTopic = async (topicId, status) => {
     try {
-      await axios.patch(`${API_BASE_URL}/topics/${topicId}`, { status }, { headers: authHeader() });
+      await apiClient.patch(`${API_BASE_URL}/topics/${topicId}`, { status });
       setTopics(prev => prev.map(t => (t.id === topicId ? { ...t, status } : t)));
     } catch {}
   };
 
   const handleRateCard = async (artifactId, cardIndex, quality) => {
-    await axios.post(
+    await apiClient.post(
       `${API_BASE_URL}/study/reviews/rate`,
-      { artifactId, cardIndex, quality },
-      { headers: authHeader() }
+      { artifactId, cardIndex, quality }
     );
     fetchDueReviews();
   };
@@ -921,15 +948,13 @@ const App = () => {
     const profileContext = getProfileContext();
     try {
       const response = isGeneralChat
-        ? await axios.post(
+        ? await apiClient.post(
             `${API_BASE_URL}/chat`,
-            { query: userMessage, history, profileContext },
-            { headers: authHeader() }
+            { query: userMessage, history, profileContext }
           )
-        : await axios.post(
+        : await apiClient.post(
             `${API_BASE_URL}/query`,
-            { query: userMessage, documentId: docId, profileContext },
-            { headers: authHeader() }
+            { query: userMessage, documentId: docId, profileContext }
           );
       const botMsg = {
         id: `b_${Date.now()}`,
@@ -980,7 +1005,7 @@ const App = () => {
   const handleDeleteDocument = async (docId) => {
     setDeletingDocId(docId);
     try {
-      await axios.delete(`${API_BASE_URL}/documents/${docId}`, { headers: authHeader() });
+      await apiClient.delete(`${API_BASE_URL}/documents/${docId}`);
       cleanupDocListeners(docId);
       setDocuments(prev => prev.filter(d => d.id !== docId));
 
@@ -1030,31 +1055,30 @@ const App = () => {
         ? 'bg-emerald-600 text-white'
         : 'bg-red-600 text-white';
     const Icon = message.type === 'success' ? CheckCircle : XCircle;
-    const inner = (
-      <>
-        <Icon className="h-5 w-5 shrink-0" />
-        {message.text}
-      </>
-    );
-    if (authStyle) {
-      return (
-        <motion.div
-          className={`${base} ${classes}`}
-          initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-        >
-          {inner}
-        </motion.div>
-      );
-    }
+    const dismissBtnClass = authStyle
+      ? 'ml-auto shrink-0 rounded p-0.5 opacity-60 hover:opacity-100'
+      : 'ml-auto shrink-0 rounded p-0.5 text-white/80 hover:text-white';
     return (
       <motion.div
+        key={`${message.type}-${message.text}`}
+        role="status"
+        aria-live="polite"
         className={`${base} ${classes}`}
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0 }}
+        initial={authStyle && reduceMotion ? false : { opacity: 0, x: authStyle ? 0 : 20, height: authStyle ? 0 : undefined }}
+        animate={{ opacity: 1, x: 0, height: authStyle ? 'auto' : undefined }}
+        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: authStyle ? 0 : 20 }}
+        transition={{ duration: 0.2 }}
       >
-        {inner}
+        <Icon className="h-5 w-5 shrink-0" />
+        <span className="min-w-0 flex-1">{message.text}</span>
+        <button
+          type="button"
+          onClick={clearMessage}
+          className={dismissBtnClass}
+          aria-label="Dismiss notification"
+        >
+          <XCircle className="h-4 w-4" />
+        </button>
       </motion.div>
     );
   };
@@ -1254,7 +1278,7 @@ const App = () => {
           onLogin={() => setStep('student_login')}
           onSignup={() => { setStep('student_signup'); clearMessage(); }}
         />
-        {renderMessage(true)}
+        <AnimatePresence mode="wait">{renderMessage(true)}</AnimatePresence>
         {renderLoginForm(
           handleStudentLogin,
           'Sign in to save your work',
@@ -1279,7 +1303,7 @@ const App = () => {
           onLogin={() => { setStep('student_login'); clearMessage(); }}
           onSignup={() => setStep('student_signup')}
         />
-        {renderMessage(true)}
+        <AnimatePresence mode="wait">{renderMessage(true)}</AnimatePresence>
         {renderStudentSignupForm()}
       </AuthSplitLayout>
     );
@@ -1291,7 +1315,7 @@ const App = () => {
         <span className="mb-6 inline-flex items-center rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800">
           Admin Portal
         </span>
-        {renderMessage(true)}
+        <AnimatePresence mode="wait">{renderMessage(true)}</AnimatePresence>
         {renderLoginForm(
           handleAdminLogin,
           'Admin sign in',
@@ -1363,25 +1387,6 @@ const App = () => {
             onOpenStudyTools={() => openPanel('studyTools')}
             onOpenStudyHub={() => openPanel('studyHub')}
             onStartDueReview={handleStartDueReview}
-          />
-
-          <OnboardingModal
-            open={showOnboarding}
-            step={onboardingStep}
-            onNext={() => {
-              if (onboardingStep >= 2) {
-                setShowOnboarding(false);
-                setOnboardingDone();
-              } else setOnboardingStep(s => s + 1);
-            }}
-            onSkip={() => {
-              setShowOnboarding(false);
-              setOnboardingDone();
-            }}
-            onClose={() => {
-              setShowOnboarding(false);
-              setOnboardingDone();
-            }}
           />
 
           <StudyToolsPanel
@@ -1471,7 +1476,7 @@ const App = () => {
           </AnimatePresence>
         </main>
 
-        <AnimatePresence>{renderMessage()}</AnimatePresence>
+        <AnimatePresence mode="wait">{renderMessage()}</AnimatePresence>
       </div>
     );
   }

@@ -53,6 +53,7 @@ public class PackService {
     @Transactional
     public StudyPack createPack(String name, Long subjectId, List<Long> documentIds, String username) {
         User user = authService.getUserByUsername(username);
+        verifyDocumentOwnership(documentIds, user.getId());
         StudyPack pack = new StudyPack();
         pack.setUser(user);
         pack.setName(name);
@@ -73,6 +74,7 @@ public class PackService {
     @Transactional
     public StudyPack updatePackDocuments(Long packId, List<Long> documentIds, String username) {
         User user = authService.getUserByUsername(username);
+        verifyDocumentOwnership(documentIds, user.getId());
         StudyPack pack = studyPackRepository.findByIdAndUserId(packId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Pack not found"));
         pack.getPackDocuments().clear();
@@ -116,10 +118,15 @@ public class PackService {
     }
 
     public List<TopicProgress> listTopics(Long examId, String username) {
+        User user = authService.getUserByUsername(username);
         if (examId != null) {
+            Exam exam = examRepository.findById(examId)
+                    .orElseThrow(() -> new IllegalArgumentException("Exam not found"));
+            if (!exam.getUser().getId().equals(user.getId())) {
+                throw new IllegalArgumentException("Forbidden");
+            }
             return topicProgressRepository.findByExamIdOrderByTopicNameAsc(examId);
         }
-        User user = authService.getUserByUsername(username);
         return topicProgressRepository.findByUserIdAndExamIsNullOrderByTopicNameAsc(user.getId());
     }
 
@@ -177,5 +184,16 @@ public class PackService {
             }
         }
         return topics.stream().limit(25).toList();
+    }
+
+    private void verifyDocumentOwnership(List<Long> documentIds, Long userId) {
+        if (documentIds == null) return;
+        for (Long docId : documentIds) {
+            Document doc = documentRepository.findById(docId)
+                    .orElseThrow(() -> new IllegalArgumentException("Document not found: " + docId));
+            if (!doc.getUser().getId().equals(userId)) {
+                throw new IllegalArgumentException("Document not owned by user: " + docId);
+            }
+        }
     }
 }
